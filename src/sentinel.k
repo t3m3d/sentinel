@@ -779,6 +779,18 @@ func drawMemSwap(win) {
     bar(win, cx, cy + 116, 560, "FREE", (gMemTotal - gMemUsed) * 100 / (gMemTotal + 1), FG_DIM)
 }
 
+func drawHardware(win) {
+    let cx = CONTENT_X + 12
+    let cy = TOP_H + 10
+    fill(win, cx, cy, WIN_W - CONTENT_X - 24, 108, BG_CRUST)
+    stroke(win, cx, cy, WIN_W - CONTENT_X - 24, 108, BORDER)
+    text(win, cx + 12, cy + 14, "HARDWARE", FG_DIM)
+    text(win, cx + 12, cy + 32, "cpu: " + gCpuModel + "  ·  " + gNcores + " cores", FG)
+    text(win, cx + 12, cy + 50, "cpu load: " + gCpuPct + "%", FG)
+    text(win, cx + 12, cy + 68, "kernel: " + gKernel, FG_DIM)
+    text(win, cx + 12, cy + 86, "hostname: " + gHost, FG_DIM)
+}
+
 func drawPlaceholder(win, index) {
     let titles = "Dashboard,Processes,CPU & Scheduling,Memory & Swap,Storage,Network,Services,Wayland Session,Hardware,Users & Sessions,Logs / Journal,Settings"
     let i = 0
@@ -861,6 +873,7 @@ func drawFrame(win) {
     else if gView == 1 { drawProcesses(win) }
     else if gView == 2 { drawCPUSched(win) }
     else if (gView == 3 { drawMemSwap(win) }
+    else if (gView == 8 { drawHardware(win) }
     else { drawPlaceholder(win, gView) }
     drawToast(win)
 }
