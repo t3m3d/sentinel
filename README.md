@@ -1,15 +1,15 @@
 # Sentinel — KryptOS System Monitor
 
-Sentinel is the planned native task manager and system monitor for **KryptOS**:
+Sentinel is the native task manager and system monitor for **KryptOS**:
 live process management, performance analytics, SysVinit service control,
 security visibility and diagnostics — written predominantly in **Krypton**
-with an Objective-K / Choc GUI architecture, dark purple/green visual
-identity.
+on pure Wayland (wl_shm), dark purple/green visual identity.
 
-> **Status: 0.0.1 proof of concept.** This repo currently contains the
-> Linux-first GUI proof of concept for KryptOS, not the full 12-section
-> roadmap from `docs/blueprint.md`. See `docs/poc-findings.md` for what is
-> proven, what is not, and what KryptOS still needs to provide.
+> **Status: 0.1.0-dev.** Dashboard + interactive Processes views are
+> functional: live /proc telemetry, process enumeration, sorting, filtering,
+> selection, inspect, SIGTERM/SIGSTOP/SIGCONT with confirmation. Other
+> sidebar sections are placeholders pending later milestones.
+> See `docs/blueprint.md` and `docs/poc-findings.md`.
 
 ## What works today (verified on x86_64 Linux, weston 14 headless)
 
