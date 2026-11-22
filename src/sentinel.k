@@ -75,6 +75,13 @@ let gHost = "unknown"
 let gKernel = "unknown"
 let gCores = 0
 let gCpuPct = 0
+let gStorageRaw = ""
+let gNetworkRaw = ""
+let gServicesRaw = ""
+let gUsersRaw = ""
+let gLogsRaw = ""
+let gWaylandRaw = ""
+let gSettingsRefresh = "1s"
 
 // ── helpers ──────────────────────────────────────────────────────────
 func lineCount(s) {
@@ -464,6 +471,22 @@ func refreshSys() {
     scanCores()
     corePercents()
     scanProcesses()
+    refreshExtras()
+}
+
+func refreshExtras() {
+    gStorageRaw = exec("df -h 2>/dev/null | head -12")
+    gNetworkRaw = readProc("/proc/net/dev")
+    gServicesRaw = exec("ls /etc/rc.d/init.d 2>/dev/null")
+    gUsersRaw = exec("who 2>/dev/null")
+    gLogsRaw = exec("dmesg 2>/dev/null | tail -12")
+    let wd = environ("WAYLAND_DISPLAY")
+    if wd == "" { wd = "unset" }
+    let de = environ("XDG_CURRENT_DESKTOP")
+    if de == "" { de = "unset" }
+    let st = environ("XDG_SESSION_TYPE")
+    if st == "" { st = "unset" }
+    gWaylandRaw = wd + "  ·  " + de + "  ·  " + st
 }
 
 func maybeTick() {
@@ -791,6 +814,163 @@ func drawHardware(win) {
     text(win, cx + 12, cy + 86, "hostname: " + gHost, FG_DIM)
 }
 
+func drawRawPanel(win, title, raw, maxLines) {
+    let cx = CONTENT_X + 12
+    let cy = TOP_H + 10
+    let pw = WIN_W - CONTENT_X - 24
+    let ph = WIN_H - TOP_H - 24
+    chocFillRect(win, cx, cy, pw, ph, BG_CRUST)
+    chocStrokeRect(win, cx, cy, pw, ph, BORDER, 1)
+    chocDrawText(win, cx + 12, cy + 14, title, FG_DIM)
+    let n = lineCount(raw)
+    if n == 0 { chocDrawText(win, cx + 12, cy + 36, "(no data)", FG_DIM); return 0 }
+    let i = 0
+    let y = cy + 34
+    let shown = 0
+    while i < n && shown < maxLines && y + 14 < cy + ph - 8 {
+        let ln = getLine(raw, i)
+        if trim(ln) != "" {
+            chocDrawText(win, cx + 12, y, clip(ln, (pw - 24) / 8), FG)
+            y += 14
+            shown += 1
+        }
+        i += 1
+    }
+    emit 0
+}
+
+func drawStorage(win) {
+    drawRawPanel(win, "STORAGE (df -h)", gStorageRaw, 16)
+}
+
+func drawNetwork(win) {
+    // parse /proc/net/dev header + rows
+    let cx = CONTENT_X + 12
+    let cy = TOP_H + 10
+    let pw = WIN_W - CONTENT_X - 24
+    let ph = WIN_H - TOP_H - 24
+    chocFillRect(win, cx, cy, pw, ph, BG_CRUST)
+    chocStrokeRect(win, cx, cy, pw, ph, BORDER, 1)
+    chocDrawText(win, cx + 12, cy + 14, "NETWORK INTERFACES (/proc/net/dev)", FG_DIM)
+    let raw = gNetworkRaw
+    let n = lineCount(raw)
+    let i = 0
+    let y = cy + 34
+    while i < n && y + 14 < cy + ph - 8 {
+        let ln = trim(getLine(raw, i))
+        if ln != "" && indexOf(ln, ":") >= 0 {
+            let iface = trim(firstpart(ln, ":"))
+            let rest = trim(afterpart(ln, ":"))
+            let rx = nthTok(rest, 0)
+            let tx = nthTok(rest, 8)
+            chocDrawText(win, cx + 12, y, clip(iface, 16), FG)
+            chocDrawText(win, cx + 120, y, "rx_bytes=" + rx, FG_DIM)
+            chocDrawText(win, cx + 360, y, "tx_bytes=" + tx, FG_DIM)
+            y += 14
+        }
+        i += 1
+    }
+    if y == cy + 34 { chocDrawText(win, cx + 12, y, "(no interfaces)", FG_DIM) }
+}
+
+func drawServices(win) {
+    let cx = CONTENT_X + 12
+    let cy = TOP_H + 10
+    let pw = WIN_W - CONTENT_X - 24
+    let ph = WIN_H - TOP_H - 24
+    chocFillRect(win, cx, cy, pw, ph, BG_CRUST)
+    chocStrokeRect(win, cx, cy, pw, ph, BORDER, 1)
+    chocDrawText(win, cx + 12, cy + 14, "SERVICES (/etc/rc.d/init.d)", FG_DIM)
+    let raw = gServicesRaw
+    let n = lineCount(raw)
+    let i = 0
+    let y = cy + 34
+    let col = 0
+    let xoff = cx + 12
+    while i < n && y + 14 < cy + ph - 8 {
+        let ln = trim(getLine(raw, i))
+        if ln != "" {
+            chocDrawText(win, xoff, y, clip(ln, 26), FG)
+            col += 1
+            if col >= 3 { col = 0; xoff = cx + 12; y += 14 }
+            else { xoff = xoff + 220 }
+        }
+        i += 1
+    }
+    if n == 0 { chocDrawText(win, cx + 12, cy + 34, "(none found)", FG_DIM) }
+}
+
+func drawWayland(win) {
+    let cx = CONTENT_X + 12
+    let cy = TOP_H + 10
+    let pw = WIN_W - CONTENT_X - 24
+    let ph = WIN_H - TOP_H - 24
+    chocFillRect(win, cx, cy, pw, ph, BG_CRUST)
+    chocStrokeRect(win, cx, cy, pw, ph, BORDER, 1)
+    chocDrawText(win, cx + 12, cy + 14, "WAYLAND / DISPLAY SESSION", FG_DIM)
+    chocDrawText(win, cx + 12, cy + 34, "session: " + gWaylandRaw, FG)
+    chocDrawText(win, cx + 12, cy + 52, "compositor: weston (headless test) / kryptos wayland session", FG_DIM)
+    chocDrawText(win, cx + 12, cy + 70, "hostname: " + gHost, FG)
+    chocDrawText(win, cx + 12, cy + 88, "user: " + environ("USER"), FG)
+    chocDrawText(win, cx + 12, cy + 106, "kernel: " + gKernel, FG_DIM)
+    chocDrawText(win, cx + 12, cy + 124, "uptime: " + uptimeStr(), FG_DIM)
+}
+
+func drawUsers(win) {
+    let cx = CONTENT_X + 12
+    let cy = TOP_H + 10
+    let pw = WIN_W - CONTENT_X - 24
+    let ph = WIN_H - TOP_H - 24
+    chocFillRect(win, cx, cy, pw, ph, BG_CRUST)
+    chocStrokeRect(win, cx, cy, pw, ph, BORDER, 1)
+    chocDrawText(win, cx + 12, cy + 14, "USERS & SESSIONS (who)", FG_DIM)
+    let raw = gUsersRaw
+    let n = lineCount(raw)
+    if n == 0 { chocDrawText(win, cx + 12, cy + 34, "(no sessions)", FG_DIM); return 0 }
+    let i = 0
+    let y = cy + 34
+    while i < n && y + 14 < cy + ph - 8 {
+        let ln = trim(getLine(raw, i))
+        if ln != "" {
+            chocDrawText(win, cx + 12, y, clip(ln, (pw - 24) / 8), FG)
+            y += 14
+        }
+        i += 1
+    }
+}
+
+func drawLogs(win) {
+    drawRawPanel(win, "LOGS (dmesg tail)", gLogsRaw, 24)
+}
+
+func drawSettings(win) {
+    let cx = CONTENT_X + 12
+    let cy = TOP_H + 10
+    let pw = WIN_W - CONTENT_X - 24
+    let ph = WIN_H - TOP_H - 24
+    chocFillRect(win, cx, cy, pw, ph, BG_CRUST)
+    chocStrokeRect(win, cx, cy, pw, ph, BORDER, 1)
+    chocDrawText(win, cx + 12, cy + 14, "SETTINGS / PREFERENCES", FG_DIM)
+    chocDrawText(win, cx + 12, cy + 34, "refresh interval: 1s (fixed — no timer builtin yet)", FG)
+    chocDrawText(win, cx + 12, cy + 52, "theme: kryptos dark (catppuccin mocha)", FG)
+    chocDrawText(win, cx + 12, cy + 70, "density: compact", FG)
+    chocDrawText(win, cx + 12, cy + 88, "sort: cpu desc (default)", FG_DIM)
+    chocDrawText(win, cx + 12, cy + 106, "filter: none", FG_DIM)
+    chocDrawText(win, cx + 12, cy + 130, "Note: timer/poll and persistence are roadmap items.", FG_DIM)
+}
+
+func drawUsersSess(win) {
+    let cx = CONTENT_X + 12
+    let cy = TOP_H + 10
+    fill(win, cx, cy, WIN_W - CONTENT_X - 24, 108, BG_CRUST)
+    stroke(win, cx, cy, WIN_W - CONTENT_X - 24, 108, BORDER)
+    text(win, cx + 12, cy + 14, "USERS & SESSIONS", FG_DIM)
+    text(win, cx + 12, cy + 32, "user: " + environ("USER"), FG)
+    text(win, cx + 12, cy + 50, "uid: " + uidToUser("0"), FG_DIM)
+    text(win, cx + 12, cy + 68, "sessions: " + gRowCount, FG_DIM)
+    text(win, cx + 12, cy + 86, "threads online: " + gNcores, FG_DIM)
+}
+
 func drawPlaceholder(win, index) {
     let titles = "Dashboard,Processes,CPU & Scheduling,Memory & Swap,Storage,Network,Services,Wayland Session,Hardware,Users & Sessions,Logs / Journal,Settings"
     let i = 0
@@ -872,8 +1052,15 @@ func drawFrame(win) {
     else if gView == 0 { drawDashboard(win) }
     else if gView == 1 { drawProcesses(win) }
     else if gView == 2 { drawCPUSched(win) }
-    else if (gView == 3 { drawMemSwap(win) }
-    else if (gView == 8 { drawHardware(win) }
+    else if gView == 3 { drawMemSwap(win) }
+    else if gView == 4 { drawStorage(win) }
+    else if gView == 5 { drawNetwork(win) }
+    else if gView == 6 { drawServices(win) }
+    else if gView == 7 { drawWayland(win) }
+    else if gView == 8 { drawHardware(win) }
+    else if gView == 9 { drawUsers(win) }
+    else if gView == 10 { drawLogs(win) }
+    else if gView == 11 { drawSettings(win) }
     else { drawPlaceholder(win, gView) }
     drawToast(win)
 }
